@@ -1,0 +1,231 @@
+-- =========================================
+-- SMART WASTE MANAGEMENT SYSTEM SCHEMA
+-- (SUPABASE / POSTGRESQL)
+-- =========================================
+
+-- Enable extensions
+create extension if not exists "uuid-ossp";
+create extension if not exists "pgcrypto";
+
+-- =========================================
+-- 1. CITIZENS
+-- =========================================
+create table citizens (
+id uuid primary key references auth.users(id) on delete cascade,
+full_name text not null,
+email text unique,
+phone text unique,
+address text,
+latitude numeric,
+longitude numeric,
+age int,
+gender text,
+green_coins int default 0,
+created_at timestamp default now()
+);
+
+-- =========================================
+-- 2. WORKERS (DRIVERS)
+-- =========================================
+create table workers (
+id uuid primary key references auth.users(id) on delete cascade,
+full_name text not null,
+email text unique,
+phone text unique,
+vehicle_number text,
+vehicle_type text,
+status text check (status in ('available','busy','offline')) default 'available',
+address text,
+latitude numeric,
+longitude numeric,
+created_at timestamp default now()
+);
+
+-- =========================================
+-- 3. GREEN CHAMPIONS
+-- =========================================
+create table green_champions (
+id uuid primary key references auth.users(id) on delete cascade,
+full_name text,
+email text unique,
+phone text,
+age int,
+points int default 0,
+zone text,
+created_at timestamp default now()
+);
+
+-- =========================================
+-- 4. ULB OPERATORS
+-- =========================================
+create table ulb_operators (
+id uuid primary key references auth.users(id) on delete cascade,
+full_name text,
+email text unique not null,
+phone text,
+city text,
+department text,
+created_at timestamp default now()
+);
+
+-- =========================================
+-- 5. WASTE REPORTS
+-- =========================================
+create table waste_reports (
+id uuid primary key default gen_random_uuid(),
+citizen_id uuid references citizens(id) on delete cascade,
+verified_by uuid references green_champions(id),
+category text,
+description text,
+image_url text,
+latitude numeric,
+longitude numeric,
+address text,
+status text check (
+status in ('pending','assigned','in_progress','completed','verified','rejected')
+) default 'pending',
+created_at timestamp default now(),
+updated_at timestamp default now()
+);
+
+-- =========================================
+-- 6. ROUTES
+-- =========================================
+create table routes (
+id uuid primary key default gen_random_uuid(),
+route_name text,
+start_location text,
+end_location text,
+total_duration int,
+frequency text,
+scheduled_time time,
+status text check (
+status in ('planned','assigned','in_progress','completed')
+) default 'planned',
+created_by uuid references ulb_operators(id),
+created_at timestamp default now()
+);
+
+-- =========================================
+-- 7. ROUTE REPORT MAPPING
+-- =========================================
+create table route_reports (
+id uuid primary key default gen_random_uuid(),
+route_id uuid references routes(id) on delete cascade,
+report_id uuid references waste_reports(id) on delete cascade
+);
+
+-- =========================================
+-- 8. DRIVER ASSIGNMENTS
+-- =========================================
+create table route_assignments (
+id uuid primary key default gen_random_uuid(),
+route_id uuid references routes(id) on delete cascade,
+worker_id uuid references workers(id),
+assigned_at timestamp default now(),
+status text check (status in ('assigned','active','completed')) default 'assigned'
+);
+
+-- =========================================
+-- 9. COLLECTION SPOTS
+-- =========================================
+create table collection_spots (
+id uuid primary key default gen_random_uuid(),
+name text,
+address text,
+latitude numeric,
+longitude numeric,
+area text,
+status text check (
+status in ('active','inactive','maintenance')
+) default 'active',
+created_by uuid references ulb_operators(id),
+created_at timestamp default now()
+);
+
+-- =========================================
+-- 10. MARKETPLACE ITEMS
+-- =========================================
+create table marketplace_items (
+id uuid primary key default gen_random_uuid(),
+seller_id uuid references citizens(id),
+title text,
+description text,
+category text,
+price numeric,
+quantity int default 1,
+image_url text,
+status text check (
+status in ('available','sold','inactive')
+) default 'available',
+latitude numeric,
+longitude numeric,
+created_at timestamp default now()
+);
+
+-- =========================================
+-- 11. TRAINING COURSES
+-- =========================================
+create table training_courses (
+id uuid primary key default gen_random_uuid(),
+title text,
+description text,
+video_url text,
+created_at timestamp default now()
+);
+
+-- =========================================
+-- 12. EVENTS
+-- =========================================
+create table events (
+id uuid primary key default gen_random_uuid(),
+title text,
+description text,
+location text,
+start_date timestamp,
+end_date timestamp,
+created_by uuid references ulb_operators(id),
+status text check (
+status in ('upcoming','ongoing','completed','cancelled')
+) default 'upcoming',
+created_at timestamp default now()
+);
+
+-- =========================================
+-- 13. INVENTORY
+-- =========================================
+create table inventory_items (
+id uuid primary key default gen_random_uuid(),
+title text,
+description text,
+stock int,
+image_url text,
+created_at timestamp default now()
+);
+
+-- =========================================
+-- 14. VIOLATIONS (ENFORCEMENT)
+-- =========================================
+create table violations (
+id uuid primary key default gen_random_uuid(),
+report_id uuid references waste_reports(id),
+violation_type text,
+description text,
+fine_amount numeric,
+status text check (
+status in ('pending','issued','paid')
+) default 'pending',
+created_at timestamp default now()
+);
+
+-- =========================================
+-- INDEXES (PERFORMANCE)
+-- =========================================
+create index idx_reports_status on waste_reports(status);
+create index idx_reports_location on waste_reports(latitude, longitude);
+create index idx_workers_status on workers(status);
+create index idx_routes_status on routes(status);
+
+-- =========================================
+-- END OF SCHEMA
+-- =========================================
